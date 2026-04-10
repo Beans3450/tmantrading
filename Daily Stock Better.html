@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Daily Time Frame Stock Predictions</title>
+
+  <style>
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 20px;
+    }
+
+    #topBar {
+      position: fixed;
+      top: 10px;
+      right: 20px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-weight: bold;
+      z-index: 1000;
+    }
+
+    #note {
+      margin-top: 50px;
+      font-size: 16px;
+      color: yellow;
+    }
+
+    #footer {
+      position: fixed;
+      bottom: 10px;
+      left: 10px;
+      font-size: 12px;
+      color: #94a3b8;
+      opacity: 0.8;
+    }
+
+    h2 {
+      margin-top: 20px;
+      color: #38bdf8;
+      margin-bottom: 20px; /* spacing between title and table */
+    }
+
+    button {
+      cursor: pointer;
+      background: #38bdf8;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 6px;
+      color: #0f172a;
+      font-weight: bold;
+    }
+
+    button:hover {
+      background: #0ea5e9;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 20px;
+      background: #1e293b;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    th, td {
+      border: 1px solid #334155;
+      padding: 8px;
+      text-align: center;
+    }
+
+    th {
+      background: #334155;
+    }
+
+    td input, td select {
+      width: 100%;
+      padding: 4px;
+      border-radius: 4px;
+      border: 1px solid #475569;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+
+    .header {
+      background: #0b1220;
+      font-weight: bold;
+      color: #38bdf8;
+    }
+
+    .green { background: #14532d; }
+    .red { background: #7f1d1d; }
+
+    .day-acc {
+      font-weight: bold;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="topBar">Overall Accuracy: <span id="acc">0%</span></div>
+
+<div id="note">
+  (If glitches, CTRL + SHIFT + R)
+</div>
+
+<div id="footer">
+  Made By: T_Man &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Powered By: ChatGPT
+</div>
+
+<h2>Daily Time Frame Stock Predictions</h2>
+
+<button onclick="newDay()">New Day</button>
+
+<table>
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Ticker</th>
+      <th>Prediction</th>
+      <th>Why My Prediction?</th>
+      <th>Start Price</th>
+      <th>Close Price</th>
+      <th>Actual</th>
+      <th>Correct</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+
+<script>
+
+const stocks = [
+  "SPY","QQQ","AAPL","AMD","AMZN","COIN","GOOGL","HOOD","INTC","IWM",
+  "META","MSFT","MU","NBIS","NFLX","NVDA","ORCL","PLTR","SHOP","TSLA"
+];
+
+function newDay() {
+  const tbody = document.getElementById("tbody");
+  const date = new Date().toLocaleDateString();
+  const groupId = Date.now();
+
+  let html = tbody.innerHTML;
+
+  html += `
+    <tr class="header" data-group="${groupId}" data-open="false">
+      <td colspan="8">
+        <button onclick="toggleGroup(this)">►</button>
+        ${date}
+        <span class="day-acc" id="acc-${groupId}">Unknown</span>
+        <button onclick="deleteDay(${groupId})" style="margin-left:10px;">Delete Day</button>
+      </td>
+    </tr>
+  `;
+
+  stocks.forEach(ticker => {
+    html += `
+      <tr data-group="${groupId}" style="display:none;">
+        <td>${date}</td>
+        <td>${ticker}</td>
+        <td>
+          <select onchange="updateRow(this)">
+            <option>Up</option>
+            <option>Down</option>
+            <option>Neutral</option>
+          </select>
+        </td>
+        <td><input oninput="updateRow(this)"></td>
+        <td><input oninput="updateRow(this)"></td>
+        <td><input oninput="updateRow(this)"></td>
+        <td>-</td>
+        <td>-</td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+
+  saveData();
+  updateAccuracy();
+}
+
+function deleteDay(groupId) {
+  if (!confirm("Are You Sure")) return;
+  const rows = document.querySelectorAll(`tr[data-group='${groupId}']`);
+  rows.forEach(r => r.remove());
+
+  const header = document.querySelector(`tr.header[data-group='${groupId}']`);
+  if (header) header.remove();
+
+  const saved = localStorage.getItem("tracker");
+  if (saved) {
+    let data = JSON.parse(saved);
+    data = data.filter(d => d.group != groupId);
+    localStorage.setItem("tracker", JSON.stringify(data));
+  }
+
+  updateAccuracy();
+}
+
+function toggleGroup(btn) {
+  const header = btn.closest(".header");
+  const groupId = header.dataset.group;
+  const isOpen = header.dataset.open === "true";
+
+  header.dataset.open = (!isOpen).toString();
+  btn.innerText = isOpen ? "►" : "▼";
+
+  const rows = document.querySelectorAll(`tr[data-group='${groupId}']`);
+  rows.forEach(r => {
+    r.style.display = isOpen ? "none" : "";
+  });
+
+  if (isOpen) {
+    setTimeout(() => {
+      location.reload();
+    }, 100);
+  }
+}
+
+function updateRow(el) {
+  const row = el.closest("tr");
+
+  const start = parseFloat(row.cells[4].querySelector("input")?.value);
+  const end = parseFloat(row.cells[5].querySelector("input")?.value);
+  const prediction = row.cells[2].querySelector("select")?.value;
+
+  if (!isNaN(start) && !isNaN(end)) {
+    let actual = "Neutral";
+    if (end > start) actual = "Up";
+    else if (end < start) actual = "Down";
+
+    row.cells[6].innerText = actual;
+
+    let correct = "-";
+    if (prediction === "Neutral") {
+      correct = "-";
+      row.className = "";
+    } else {
+      const isCorrect = prediction === actual;
+      correct = isCorrect ? "Yes" : "No";
+      row.className = isCorrect ? "green" : "red";
+    }
+
+    row.cells[7].innerText = correct;
+  }
+
+  updateAccuracy();
+  updateDayAccuracy(row.dataset.group);
+  saveData();
+}
+
+function updateAccuracy() {
+  const rows = document.querySelectorAll("#tbody tr");
+
+  let correct = 0;
+  let total = 0;
+
+  rows.forEach(row => {
+    const val = row.cells?.[7]?.innerText;
+    if (val === "Yes" || val === "No") {
+      if (val === "Yes") correct++;
+      total++;
+    }
+  });
+
+  const acc = total ? (correct / total * 100).toFixed(1) : 0;
+  const accEl = document.getElementById("acc");
+
+  accEl.innerText = acc + "%";
+  if (acc > 50) accEl.style.color = "#22c55e";
+  else if (acc < 50) accEl.style.color = "#ef4444";
+  else accEl.style.color = "#eab308";
+}
+
+function updateDayAccuracy(groupId) {
+  const rows = document.querySelectorAll(`tr[data-group='${groupId}']`);
+
+  let correct = 0;
+  let total = 0;
+
+  rows.forEach(r => {
+    const val = r.cells[7]?.innerText;
+    if (val === "Yes" || val === "No") {
+      if (val === "Yes") correct++;
+      total++;
+    }
+  });
+
+  const el = document.getElementById("acc-" + groupId);
+
+  if (el) {
+    if (total === 0) {
+      el.innerText = "Unknown";
+      el.style.color = "#e2e8f0";
+    } else {
+      const acc = (correct / total * 100).toFixed(1);
+      el.innerText = acc + "%";
+      if (acc > 50) el.style.color = "#22c55e";
+      else if (acc < 50) el.style.color = "#ef4444";
+      else el.style.color = "#eab308";
+    }
+  }
+}
+
+function saveData() {
+  const data = [];
+
+  const rows = document.querySelectorAll("#tbody tr");
+
+  rows.forEach(row => {
+    if (!row.dataset.group) return;
+    if (row.classList.contains("header")) return;
+
+    data.push({
+      date: row.cells[0].innerText,
+      ticker: row.cells[1].innerText,
+      prediction: row.cells[2].querySelector("select")?.value,
+      why: row.cells[3].querySelector("input")?.value,
+      start: row.cells[4].querySelector("input")?.value,
+      end: row.cells[5].querySelector("input")?.value,
+      actual: row.cells[6].innerText,
+      correct: row.cells[7].innerText,
+      group: row.dataset.group
+    });
+  });
+
+  localStorage.setItem("tracker", JSON.stringify(data));
+}
+
+function loadData() {
+  const saved = localStorage.getItem("tracker");
+  if (!saved) return;
+
+  const data = JSON.parse(saved);
+  const tbody = document.getElementById("tbody");
+
+  let html = "";
+
+  const grouped = {};
+  data.forEach(d => {
+    if (!grouped[d.group]) grouped[d.group] = [];
+    grouped[d.group].push(d);
+  });
+
+  Object.keys(grouped).forEach(groupId => {
+    const groupRows = grouped[groupId];
+    const date = groupRows[0].date;
+
+    html += `
+      <tr class="header" data-group="${groupId}" data-open="false">
+        <td colspan="8">
+          <button onclick="toggleGroup(this)">►</button>
+          ${date}
+          <span class="day-acc" id="acc-${groupId}">Unknown</span>
+          <button onclick="deleteDay(${groupId})" style="margin-left:10px;">Delete Day</button>
+        </td>
+      </tr>
+    `;
+
+    groupRows.forEach(d => {
+      html += `
+        <tr data-group="${groupId}" style="display:none;">
+          <td>${d.date}</td>
+          <td>${d.ticker}</td>
+          <td>
+            <select onchange="updateRow(this)">
+              <option ${d.prediction === "Up" ? "selected" : ""}>Up</option>
+              <option ${d.prediction === "Down" ? "selected" : ""}>Down</option>
+              <option ${d.prediction === "Neutral" ? "selected" : ""}>Neutral</option>
+            </select>
+          </td>
+          <td><input value="${d.why || ""}" oninput="updateRow(this)"></td>
+          <td><input value="${d.start || ""}" oninput="updateRow(this)"></td>
+          <td><input value="${d.end || ""}" oninput="updateRow(this)"></td>
+          <td>${d.actual || "-"}</td>
+          <td>${d.correct || "-"}</td>
+        </tr>
+      `;
+    });
+  });
+
+  tbody.innerHTML = html;
+  updateAccuracy();
+
+  Object.keys(grouped).forEach(groupId => {
+    updateDayAccuracy(groupId);
+  });
+}
+
+window.onload = loadData;
+
+</script>
+
+</body>
+</html>
